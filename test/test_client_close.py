@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -8,7 +7,6 @@ from pyqwest import Client, SyncClient
 from pyqwest.testing import ASGITransport, WSGITransport
 
 from connectrpc._client_async import _consume_single_response
-from connectrpc.code import Code
 from connectrpc.errors import ConnectError
 
 from .haberdasher_connect import (
@@ -20,7 +18,6 @@ from .haberdasher_connect import (
     HaberdasherWSGIApplication,
 )
 from .haberdasher_pb import Hat, Size
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -214,7 +211,7 @@ class TestConsumeSingleResponseClosesGenerator:
     async def test_raises_on_empty_generator(self):
         async def gen():
             return
-            yield  # Make it an async generator  # noqa: E501
+            yield  # Make it an async generator
 
         with pytest.raises(ConnectError, match="zero messages"):
             await _consume_single_response(gen())
