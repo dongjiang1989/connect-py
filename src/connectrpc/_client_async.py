@@ -178,6 +178,9 @@ class ConnectClient:
         """Close the HTTP client. After closing, the client cannot be used to make requests."""
         if not self._closed:
             self._closed = True
+            aclose = getattr(self._http_client, "aclose", None)
+            if aclose is not None:
+                await aclose()
 
     async def __aenter__(self) -> Self:
         return self
@@ -190,6 +193,10 @@ class ConnectClient:
     ) -> None:
         await self.close()
 
+    def _check_closed(self) -> None:
+        if self._closed:
+            raise RuntimeError("Client is closed")
+
     async def execute_unary(
         self,
         *,
@@ -199,6 +206,7 @@ class ConnectClient:
         timeout_ms: int | None = None,
         use_get: bool = False,
     ) -> RES:
+        self._check_closed()
         ctx = self._protocol.create_request_context(
             method=method,
             url=self._address,
@@ -220,6 +228,7 @@ class ConnectClient:
         headers: Headers | Mapping[str, str] | None = None,
         timeout_ms: int | None = None,
     ) -> RES:
+        self._check_closed()
         ctx = self._protocol.create_request_context(
             method=method,
             url=self._address,
@@ -241,6 +250,7 @@ class ConnectClient:
         headers: Headers | Mapping[str, str] | None = None,
         timeout_ms: int | None = None,
     ) -> AsyncIterator[RES]:
+        self._check_closed()
         ctx = self._protocol.create_request_context(
             method=method,
             url=self._address,
@@ -262,6 +272,7 @@ class ConnectClient:
         headers: Headers | Mapping[str, str] | None = None,
         timeout_ms: int | None = None,
     ) -> AsyncIterator[RES]:
+        self._check_closed()
         ctx = self._protocol.create_request_context(
             method=method,
             url=self._address,
@@ -440,13 +451,14 @@ async def _yield_single_message(message: REQ) -> AsyncIterator[REQ]:
 
 
 async def _consume_single_response(stream: AsyncIterator[RES]) -> RES:
-    res = None
-    async for message in stream:
-        if res is not None:
-            raise ConnectError(
-                Code.UNIMPLEMENTED, "unary response has multiple messages"
-            )
-        res = message
-    if res is None:
-        raise ConnectError(Code.UNIMPLEMENTED, "unary response has zero messages")
-    return res
+    try:
+        response = await anext(stream)
+    except StopAsyncIteration:
+        raise ConnectError(Code.UNIMPLEMENTED, "unary response has zero messages") from None
+    try:
+        await anext(stream)
+    except StopAsyncIteration:
+        return response
+    finally:
+        await stream.aclose()
+    raise ConnectError(Code.UNIMPLEMENTED, "unary response has multiple messages")

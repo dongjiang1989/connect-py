@@ -177,6 +177,9 @@ class ConnectClientSync:
         """Close the HTTP client. After closing, the client cannot be used to make requests."""
         if not self._closed:
             self._closed = True
+            close = getattr(self._http_client, "close", None)
+            if close is not None:
+                close()
 
     def __enter__(self) -> Self:
         return self
@@ -189,6 +192,10 @@ class ConnectClientSync:
     ) -> None:
         self.close()
 
+    def _check_closed(self) -> None:
+        if self._closed:
+            raise RuntimeError("Client is closed")
+
     def execute_unary(
         self,
         *,
@@ -198,6 +205,7 @@ class ConnectClientSync:
         timeout_ms: int | None = None,
         use_get: bool = False,
     ) -> RES:
+        self._check_closed()
         ctx = self._protocol.create_request_context(
             method=method,
             url=self._address,
@@ -219,6 +227,7 @@ class ConnectClientSync:
         headers: Headers | Mapping[str, str] | None = None,
         timeout_ms: int | None = None,
     ) -> RES:
+        self._check_closed()
         ctx = self._protocol.create_request_context(
             method=method,
             url=self._address,
@@ -240,6 +249,7 @@ class ConnectClientSync:
         headers: Headers | Mapping[str, str] | None = None,
         timeout_ms: int | None = None,
     ) -> Iterator[RES]:
+        self._check_closed()
         ctx = self._protocol.create_request_context(
             method=method,
             url=self._address,
@@ -261,6 +271,7 @@ class ConnectClientSync:
         headers: Headers | Mapping[str, str] | None = None,
         timeout_ms: int | None = None,
     ) -> Iterator[RES]:
+        self._check_closed()
         ctx = self._protocol.create_request_context(
             method=method,
             url=self._address,
